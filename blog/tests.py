@@ -1,14 +1,73 @@
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
+from config.db.backends.turso.driver import TursoCursorWrapper
 from .models import Comment, CommentLike, ModerationStatus, Post, PostLike, Visit
+
+
+class TursoCursorWrapperTests(SimpleTestCase):
+    def test_execute_translates_positional_parameters(self):
+        connection = _FakeTursoConnection()
+        cursor = TursoCursorWrapper(connection)
+
+        cursor.execute("SELECT id FROM items WHERE id = %s", (7,))
+
+        self.assertEqual(
+            connection.statements,
+            [("SELECT id FROM items WHERE id = ?", [7], None, True)],
+        )
+        self.assertEqual(cursor.fetchone(), (7,))
+
+    def test_execute_translates_named_parameters(self):
+        connection = _FakeTursoConnection()
+        cursor = TursoCursorWrapper(connection)
+
+        cursor.execute(
+            "SELECT id FROM items WHERE id = %(item_id)s", {"item_id": 7}
+        )
+
+        self.assertEqual(
+            connection.statements,
+            [
+                (
+                    "SELECT id FROM items WHERE id = :item_id",
+                    None,
+                    [(":item_id", 7)],
+                    True,
+                )
+            ],
+        )
+
+
+class _FakeTursoConnection:
+    row_factory = None
+
+    def __init__(self):
+        self.statements = []
+        self.transaction_checks = []
+
+    def _maybe_implicit_begin(self, sql):
+        self.transaction_checks.append(sql)
+        return None
+
+    def _execute_stmt(
+        self, sql, params=None, named_params=None, want_rows=True
+    ):
+        self.statements.append((sql, params, named_params, want_rows))
+        return SimpleNamespace(
+            columns=["id"],
+            rows=[(7,)],
+            affected_rows=1,
+            last_insert_rowid=None,
+        )
 
 
 @override_settings(

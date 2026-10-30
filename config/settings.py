@@ -1,6 +1,7 @@
 """Settings for the AllManiac Django blog."""
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management.utils import get_random_secret_key
@@ -75,12 +76,21 @@ if bool(turso_url) != bool(turso_token):
     )
 
 if turso_url and turso_token:
-    separator = "&" if "?" in turso_url else "?"
-    turso_name = f"{turso_url}{separator}authToken={turso_token}"
+    parsed_turso_url = urlsplit(turso_url)
+    if (
+        parsed_turso_url.scheme not in {"https", "libsql", "turso"}
+        or not parsed_turso_url.netloc
+        or parsed_turso_url.query
+        or parsed_turso_url.fragment
+    ):
+        raise ImproperlyConfigured(
+            "TURSO_DATABASE_URL must be a plain https://, libsql://, or turso:// URL without query parameters."
+        )
     DATABASES = {
         "default": {
-            "ENGINE": "libsql.db.backends.sqlite3",
-            "NAME": turso_name,
+            "ENGINE": "config.db.backends.turso",
+            "NAME": turso_url,
+            "OPTIONS": {"auth_token": turso_token},
         }
     }
 elif not DEBUG:
