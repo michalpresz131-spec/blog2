@@ -303,6 +303,7 @@ class PostImportExportTests(TestCase):
         call_command("import_legacy_blog", stdout=output)
         call_command("import_legacy_blog", stdout=output)
 
+        self.assertEqual(urlopen.call_count, 4)
         post = Post.objects.get(legacy_source_id="10")
         comment = Comment.objects.get(legacy_source_id="20")
         self.assertEqual(Post.objects.filter(legacy_source_id="10").count(), 1)

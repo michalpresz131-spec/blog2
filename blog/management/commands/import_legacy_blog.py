@@ -1,9 +1,12 @@
 import base64
 import json
+import time
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import OperationalError, connection
+from django.db.models import Count
 from django.utils.dateparse import parse_datetime
 
 from blog.models import Comment, ModerationStatus, Post
@@ -47,6 +50,60 @@ def _parse_date(value, item):
     return parsed
 
 
+def _retry_on_database_lock(operation):
+    for attempt in range(6):
+        try:
+            return operation()
+        except OperationalError as error:
+            if "database is locked" not in str(error).lower() or attempt == 5:
+                raise
+            connection.close()
+            time.sleep(min(0.25 * (2**attempt), 4))
+
+
+def _save_post(item):
+    post, created = Post.objects.get_or_create(
+        legacy_source_id=item["source_id"],
+        defaults={
+            "title": item["title"],
+            "body": item["body"],
+            "author_name": "AllManiac",
+            "status": ModerationStatus.APPROVED,
+            "created_at": item["created_at"],
+            "image_data": item["image_data"],
+            "image_content_type": item["image_content_type"],
+        },
+    )
+    if created:
+        Post.objects.filter(pk=post.pk).update(
+            created_at=item["created_at"],
+            updated_at=item["created_at"],
+        )
+    elif item["image_data"] and not post.image_data:
+        post.image_data = item["image_data"]
+        post.image_content_type = item["image_content_type"]
+        post.save(update_fields=["image_data", "image_content_type"])
+
+    imported_comments = 0
+    for source_comment in item["comments"]:
+        comment, comment_created = Comment.objects.get_or_create(
+            legacy_source_id=source_comment["source_id"],
+            defaults={
+                "post": post,
+                "author_name": source_comment["author_name"],
+                "body": source_comment["body"],
+                "status": ModerationStatus.APPROVED,
+                "created_at": source_comment["created_at"],
+            },
+        )
+        if comment_created:
+            Comment.objects.filter(pk=comment.pk).update(
+                created_at=source_comment["created_at"]
+            )
+            imported_comments += 1
+    return int(created), imported_comments
+
+
 class Command(BaseCommand):
     help = "Import approved posts, comments, and images from the original AllManiac blog."
 
@@ -61,6 +118,37 @@ class Command(BaseCommand):
         source_posts = _read_json("/api/posts")
         if not isinstance(source_posts, list):
             raise CommandError("The source posts endpoint did not return a JSON array.")
+        source_ids = {
+            str(item["id"])
+            for item in source_posts
+            if isinstance(item, dict) and item.get("id") is not None
+        }
+        if len(source_ids) != len(source_posts):
+            raise CommandError("The source posts endpoint returned duplicate or invalid IDs.")
+        existing_posts = dict(
+            Post.objects.filter(legacy_source_id__in=source_ids).values_list(
+                "legacy_source_id", "image_content_type"
+            )
+        )
+        comment_counts = dict(
+            Comment.objects.filter(post__legacy_source_id__in=source_ids)
+            .values("post__legacy_source_id")
+            .annotate(total=Count("id"))
+            .values_list("post__legacy_source_id", "total")
+        )
+        if (
+            set(existing_posts) == source_ids
+            and all(
+                not item.get("has_image") or existing_posts[str(item["id"])]
+                for item in source_posts
+            )
+            and all(
+                comment_counts.get(str(item["id"]), 0) == item.get("comment_count", 0)
+                for item in source_posts
+            )
+        ):
+            self.stdout.write(self.style.SUCCESS("The source blog data is already imported."))
+            return
 
         posts = []
         total_image_bytes = 0
@@ -141,45 +229,9 @@ class Command(BaseCommand):
         imported_posts = 0
         imported_comments = 0
         for item in posts:
-            post, created = Post.objects.get_or_create(
-                legacy_source_id=item["source_id"],
-                defaults={
-                    "title": item["title"],
-                    "body": item["body"],
-                    "author_name": "AllManiac",
-                    "status": ModerationStatus.APPROVED,
-                    "created_at": item["created_at"],
-                    "image_data": item["image_data"],
-                    "image_content_type": item["image_content_type"],
-                },
-            )
-            if created:
-                Post.objects.filter(pk=post.pk).update(
-                    created_at=item["created_at"],
-                    updated_at=item["created_at"],
-                )
-                imported_posts += 1
-            elif item["image_data"] and not post.image_data:
-                post.image_data = item["image_data"]
-                post.image_content_type = item["image_content_type"]
-                post.save(update_fields=["image_data", "image_content_type"])
-
-            for source_comment in item["comments"]:
-                comment, created = Comment.objects.get_or_create(
-                    legacy_source_id=source_comment["source_id"],
-                    defaults={
-                        "post": post,
-                        "author_name": source_comment["author_name"],
-                        "body": source_comment["body"],
-                        "status": ModerationStatus.APPROVED,
-                        "created_at": source_comment["created_at"],
-                    },
-                )
-                if created:
-                    Comment.objects.filter(pk=comment.pk).update(
-                        created_at=source_comment["created_at"]
-                    )
-                    imported_comments += 1
+            post_count, comment_count = _retry_on_database_lock(lambda: _save_post(item))
+            imported_posts += post_count
+            imported_comments += comment_count
 
         self.stdout.write(
             self.style.SUCCESS(
