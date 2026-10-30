@@ -14,7 +14,7 @@ services:
       - key: DJANGO_DEBUG
         value: "false"
       - key: DJANGO_ALLOWED_HOSTS
-        value: blog2.onrender.com
+        value: blog2-8igf.onrender.com
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: TURSO_DATABASE_URL
