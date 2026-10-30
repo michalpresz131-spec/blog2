@@ -1,5 +1,6 @@
 from django.core.exceptions import ImproperlyConfigured
 from django.db import NotSupportedError
+from django.db.backends.sqlite3.schema import DatabaseSchemaEditor
 from libsql.db.backends.sqlite3.base import DatabaseWrapper as LibsqlDatabaseWrapper
 import turso_serverless
 
@@ -8,6 +9,7 @@ from .driver import TursoCursorWrapper
 
 class DatabaseWrapper(LibsqlDatabaseWrapper):
     Database = turso_serverless
+    SchemaEditorClass = DatabaseSchemaEditor
 
     def get_connection_params(self):
         settings_dict = self.settings_dict
