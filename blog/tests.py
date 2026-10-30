@@ -70,6 +70,14 @@ class _FakeTursoConnection:
         )
 
 
+class HealthCheckTests(SimpleTestCase):
+    def test_health_check_returns_ok_without_database_access(self):
+        response = self.client.get("/healthz/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"ok")
+
+
 @override_settings(
     MODERATION_NOTIFICATION_EMAILS=["staff@example.test"],
     STORAGES={
