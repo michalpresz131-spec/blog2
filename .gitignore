@@ -7,3 +7,4 @@ __pycache__/
 /staticfiles/
 .venv/
 .pytest_cache/
+set-env.ps1

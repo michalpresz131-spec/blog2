@@ -39,6 +39,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -82,6 +83,10 @@ if turso_url and turso_token:
             "NAME": turso_name,
         }
     }
+elif not DEBUG:
+    raise ImproperlyConfigured(
+        "Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN before running with DJANGO_DEBUG=false."
+    )
 else:
     DATABASES = {
         "default": {
@@ -110,7 +115,9 @@ MEDIA_ROOT = BASE_DIR / os.environ.get("MEDIA_ROOT", "media")
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
 }
 if os.environ.get("MEDIA_STORAGE_BACKEND", "local").strip().lower() == "s3":
     STORAGES["default"] = {
@@ -130,19 +137,30 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/admin/login/"
 
 EMAIL_BACKEND = os.environ.get(
-    "DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+    "DJANGO_EMAIL_BACKEND",
+    (
+        "django.core.mail.backends.smtp.EmailBackend"
+        if os.environ.get("GMAIL_USER") and os.environ.get("GMAIL_APP_PASSWORD")
+        else "django.core.mail.backends.console.EmailBackend"
+    ),
 )
-EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "")
+gmail_user = os.environ.get("GMAIL_USER", "")
+gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD", "")
+if bool(gmail_user) != bool(gmail_app_password):
+    raise ImproperlyConfigured("Set both GMAIL_USER and GMAIL_APP_PASSWORD to enable Gmail notifications.")
+EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "smtp.gmail.com" if gmail_user else "")
 EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", "587"))
 EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", True)
-EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_HOST_USER", gmail_user)
+EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_HOST_PASSWORD", gmail_app_password)
 DEFAULT_FROM_EMAIL = os.environ.get(
-    "DJANGO_DEFAULT_FROM_EMAIL", "AllManiac blog <noreply@example.com>"
+    "DJANGO_DEFAULT_FROM_EMAIL", gmail_user or "AllManiac blog <noreply@example.com>"
 )
 MODERATION_NOTIFICATION_EMAILS = [
     address.strip()
-    for address in os.environ.get("MODERATION_NOTIFICATION_EMAILS", "").split(",")
+    for address in os.environ.get(
+        "MODERATION_NOTIFICATION_EMAILS", os.environ.get("NOTIFY_EMAIL", "")
+    ).split(",")
     if address.strip()
 ]
 
@@ -155,3 +173,4 @@ SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", not DEBUG)
 SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "31536000" if not DEBUG else "0"))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

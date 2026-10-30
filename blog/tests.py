@@ -11,7 +11,15 @@ from django.urls import reverse
 from .models import Comment, CommentLike, ModerationStatus, Post, PostLike, Visit
 
 
-@override_settings(MODERATION_NOTIFICATION_EMAILS=["staff@example.test"])
+@override_settings(
+    MODERATION_NOTIFICATION_EMAILS=["staff@example.test"],
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    },
+)
 class BlogPublicFlowTests(TestCase):
     def setUp(self):
         self.post = Post.objects.create(
