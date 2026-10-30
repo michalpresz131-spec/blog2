@@ -1,0 +1,189 @@
+import base64
+import json
+from urllib.error import URLError
+from urllib.request import Request, urlopen
+
+from django.core.management.base import BaseCommand, CommandError
+from django.utils.dateparse import parse_datetime
+
+from blog.models import Comment, ModerationStatus, Post
+
+
+API_BASE_URL = "https://poigogvk4u5zj2eiq2zkgumy4a0pvqnk.lambda-url.us-east-1.on.aws"
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+def _read_url(path):
+    request = Request(
+        f"{API_BASE_URL}{path}",
+        headers={"Accept": "application/json, image/*", "User-Agent": "AllManiacBlogImporter/1.0"},
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            content_type = response.headers.get_content_type()
+            body = response.read(MAX_IMAGE_BYTES + 1)
+            if len(body) > MAX_IMAGE_BYTES:
+                raise CommandError(f"Source response exceeded the size limit: {path}")
+            return content_type, body
+    except (OSError, URLError, TimeoutError) as error:
+        raise CommandError(f"Could not fetch source data from {path}: {error}") from error
+
+
+def _read_json(path):
+    content_type, body = _read_url(path)
+    if content_type != "application/json":
+        raise CommandError(f"Expected JSON from source endpoint: {path}")
+    try:
+        return json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise CommandError(f"Source endpoint returned invalid JSON: {path}") from error
+
+
+def _parse_date(value, item):
+    parsed = parse_datetime(str(value))
+    if parsed is None or parsed.utcoffset() is None:
+        raise CommandError(f"Source {item} has an invalid or timezone-free date.")
+    return parsed
+
+
+class Command(BaseCommand):
+    help = "Import approved posts, comments, and images from the original AllManiac blog."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Fetch and validate source data without writing to the database.",
+        )
+
+    def handle(self, *args, **options):
+        source_posts = _read_json("/api/posts")
+        if not isinstance(source_posts, list):
+            raise CommandError("The source posts endpoint did not return a JSON array.")
+
+        posts = []
+        total_image_bytes = 0
+        for item in source_posts:
+            if not isinstance(item, dict) or item.get("id") is None:
+                raise CommandError("The source posts endpoint returned an invalid post.")
+            title = str(item.get("title") or "").strip()
+            body = str(item.get("content") or "").strip()
+            if not title or not body:
+                raise CommandError(f"Source post {item['id']} is missing its title or content.")
+            if len(title) > 180:
+                raise CommandError(f"Source post {item['id']} has a title longer than 180 characters.")
+
+            post = {
+                "source_id": str(item["id"]),
+                "title": title,
+                "body": body,
+                "created_at": _parse_date(item.get("date"), f"post {item['id']}"),
+                "image_data": "",
+                "image_content_type": "",
+                "comments": [],
+            }
+            if item.get("has_image"):
+                image_type, image_bytes = _read_url(f"/api/posts/{item['id']}/image")
+                if image_type not in IMAGE_CONTENT_TYPES:
+                    raise CommandError(
+                        f"Source post {item['id']} has an unsupported image type: {image_type}"
+                    )
+                if not image_bytes:
+                    raise CommandError(f"Source post {item['id']} has an empty image.")
+                post["image_data"] = base64.b64encode(image_bytes).decode("ascii")
+                post["image_content_type"] = image_type
+                total_image_bytes += len(image_bytes)
+
+            if item.get("comment_count", 0):
+                source_comments = _read_json(f"/api/posts/{item['id']}/comments")
+                if not isinstance(source_comments, list):
+                    raise CommandError(
+                        f"Comments for source post {item['id']} were not a JSON array."
+                    )
+                if len(source_comments) != item["comment_count"]:
+                    raise CommandError(
+                        f"Expected {item['comment_count']} comment(s) for source post "
+                        f"{item['id']}, received {len(source_comments)}."
+                    )
+                for comment in source_comments:
+                    if not isinstance(comment, dict) or comment.get("id") is None:
+                        raise CommandError(
+                            f"Source post {item['id']} has an invalid comment."
+                        )
+                    comment_body = str(comment.get("content") or "").strip()
+                    if not comment_body:
+                        raise CommandError(
+                            f"Source comment {comment['id']} is missing its content."
+                        )
+                    post["comments"].append(
+                        {
+                            "source_id": str(comment["id"]),
+                            "author_name": str(comment.get("author") or "Garden visitor").strip()[:80],
+                            "body": comment_body,
+                            "created_at": _parse_date(
+                                comment.get("date"), f"comment {comment['id']}"
+                            ),
+                        }
+                    )
+            posts.append(post)
+
+        comment_count = sum(len(post["comments"]) for post in posts)
+        if options["dry_run"]:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Validated {len(posts)} post(s), {comment_count} comment(s), "
+                    f"and {total_image_bytes} image bytes; database unchanged."
+                )
+            )
+            return
+
+        imported_posts = 0
+        imported_comments = 0
+        for item in posts:
+            post, created = Post.objects.get_or_create(
+                legacy_source_id=item["source_id"],
+                defaults={
+                    "title": item["title"],
+                    "body": item["body"],
+                    "author_name": "AllManiac",
+                    "status": ModerationStatus.APPROVED,
+                    "created_at": item["created_at"],
+                    "image_data": item["image_data"],
+                    "image_content_type": item["image_content_type"],
+                },
+            )
+            if created:
+                Post.objects.filter(pk=post.pk).update(
+                    created_at=item["created_at"],
+                    updated_at=item["created_at"],
+                )
+                imported_posts += 1
+            elif item["image_data"] and not post.image_data:
+                post.image_data = item["image_data"]
+                post.image_content_type = item["image_content_type"]
+                post.save(update_fields=["image_data", "image_content_type"])
+
+            for source_comment in item["comments"]:
+                comment, created = Comment.objects.get_or_create(
+                    legacy_source_id=source_comment["source_id"],
+                    defaults={
+                        "post": post,
+                        "author_name": source_comment["author_name"],
+                        "body": source_comment["body"],
+                        "status": ModerationStatus.APPROVED,
+                        "created_at": source_comment["created_at"],
+                    },
+                )
+                if created:
+                    Comment.objects.filter(pk=comment.pk).update(
+                        created_at=source_comment["created_at"]
+                    )
+                    imported_comments += 1
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Imported {imported_posts} new post(s) and {imported_comments} new comment(s); "
+                f"stored {total_image_bytes} image bytes."
+            )
+        )

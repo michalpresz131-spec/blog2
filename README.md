@@ -77,8 +77,6 @@ collected. Likes are likewise unique per browser session.
 
 ## Import and export
 
-No posts JSON export or database credentials were present in the source
-repository, so no existing posts were imported and no Turso data is claimed.
 The commands support a JSON array or `{"posts": [...]}` using `title` and
 `body` (or `content`) fields:
 
@@ -91,6 +89,18 @@ Imports are approved by default (use `--status pending` to hold them for
 review). Exports include approved posts by default; a staff operator should
 only use `--include-unapproved` when intentionally exporting private pending or
 rejected submissions. Uploaded image files are not embedded in JSON.
+
+To copy the public, approved posts, comments, and images from the original
+AllManiac blog into the configured database, run:
+
+```powershell
+python manage.py import_legacy_blog --dry-run
+python manage.py import_legacy_blog
+```
+
+The import is safe to rerun: source IDs prevent duplicate posts and comments,
+and images are stored with their posts in the database rather than Render's
+ephemeral filesystem.
 
 ## Media storage
 

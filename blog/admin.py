@@ -45,6 +45,9 @@ class PostAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
     actions = (approve_posts, reject_posts)
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).defer("image_data")
+
 
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):

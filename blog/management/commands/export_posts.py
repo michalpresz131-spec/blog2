@@ -18,7 +18,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         try:
-            posts = Post.objects.all()
+            posts = Post.objects.defer("image_data").all()
             if not options["include_unapproved"]:
                 posts = posts.filter(status=ModerationStatus.APPROVED)
             payload = {

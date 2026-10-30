@@ -1,8 +1,12 @@
+import base64
+
 from django.contrib import messages
 from django.db import IntegrityError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Prefetch
 from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET
 
 from .forms import CommentSubmissionForm, PostSubmissionForm
 from .models import Comment, CommentLike, ModerationStatus, Post, PostLike
@@ -14,6 +18,7 @@ def home(request, post_form=None):
     visit_count = record_visit(request)
     posts = (
         Post.objects.filter(status=ModerationStatus.APPROVED)
+        .defer("image_data")
         .prefetch_related(
             Prefetch(
                 "comments",
@@ -32,6 +37,22 @@ def home(request, post_form=None):
             "visit_count": visit_count,
         },
     )
+
+
+@require_GET
+def post_image(request, slug):
+    post = get_object_or_404(
+        Post.objects.only("image_data", "image_content_type"),
+        slug=slug,
+        status=ModerationStatus.APPROVED,
+        image_data__gt="",
+    )
+    response = HttpResponse(
+        base64.b64decode(post.image_data, validate=True),
+        content_type=post.image_content_type,
+    )
+    response["Cache-Control"] = "public, max-age=86400"
+    return response
 
 
 @require_POST

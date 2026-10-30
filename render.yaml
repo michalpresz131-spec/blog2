@@ -6,7 +6,7 @@ services:
     region: oregon
     branch: main
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --no-input
-    startCommand: python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    startCommand: python manage.py migrate && python manage.py import_legacy_blog && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
     healthCheckPath: /healthz/
     envVars:
       - key: PYTHON_VERSION

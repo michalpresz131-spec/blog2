@@ -63,7 +63,7 @@
         <div class="posts">
           {% for post in posts %}
             <article class="post">
-              {% if post.image %}<img class="post-image" src="{{ post.image.url }}" alt="Photo shared with {{ post.title }}">{% endif %}
+              {% if post.image %}<img class="post-image" src="{{ post.image.url }}" alt="Photo shared with {{ post.title }}">{% elif post.image_content_type %}<img class="post-image" src="{% url 'blog:post_image' post.slug %}" alt="Photo shared with {{ post.title }}">{% endif %}
               <div class="post-meta">
                 <span>{{ post.created_at|date:"j F Y" }}</span>
                 <span>Shared by {{ post.author_name }}</span>

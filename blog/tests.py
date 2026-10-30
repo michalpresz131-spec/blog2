@@ -1,7 +1,11 @@
 import json
 import tempfile
+from base64 import b64encode
+from email.message import Message
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -76,6 +80,29 @@ class HealthCheckTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"ok")
+
+
+class LegacyPostImageTests(TestCase):
+    def test_imported_image_is_served_for_approved_post(self):
+        image_bytes = b"image bytes"
+        post = Post.objects.create(
+            title="Imported garden",
+            body="A garden story.",
+            image_data=b64encode(image_bytes).decode("ascii"),
+            image_content_type="image/jpeg",
+            legacy_source_id="legacy-post-1",
+            status=ModerationStatus.APPROVED,
+        )
+
+        response = self.client.get(reverse("blog:post_image", args=[post.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/jpeg")
+        self.assertEqual(response.content, image_bytes)
+        self.assertContains(
+            self.client.get(reverse("blog:home")),
+            reverse("blog:post_image", args=[post.slug]),
+        )
 
 
 @override_settings(
@@ -216,3 +243,71 @@ class PostImportExportTests(TestCase):
             call_command("export_posts", file=str(destination))
             exported = json.loads(destination.read_text(encoding="utf-8"))
             self.assertEqual(exported["posts"][0]["title"], "Imported")
+
+    @patch("blog.management.commands.import_legacy_blog.urlopen")
+    def test_legacy_import_preserves_image_and_comment_without_duplicates(self, urlopen):
+        from blog.management.commands.import_legacy_blog import API_BASE_URL
+
+        post_data = [
+            {
+                "id": 10,
+                "title": "Original post",
+                "content": "Original content",
+                "date": "2024-06-01T10:00:00Z",
+                "has_image": True,
+                "comment_count": 1,
+            }
+        ]
+        comment_data = [
+            {
+                "id": 20,
+                "post_id": 10,
+                "author": "Reader",
+                "content": "Lovely garden.",
+                "date": "2024-06-02T10:00:00Z",
+            }
+        ]
+        image_bytes = b"legacy image"
+        responses = {
+            f"{API_BASE_URL}/api/posts": (json.dumps(post_data).encode(), "application/json"),
+            f"{API_BASE_URL}/api/posts/10/comments": (
+                json.dumps(comment_data).encode(),
+                "application/json",
+            ),
+            f"{API_BASE_URL}/api/posts/10/image": (image_bytes, "image/jpeg"),
+        }
+
+        class FakeResponse:
+            status = 200
+
+            def __init__(self, body, content_type):
+                self.body = body
+                self.headers = Message()
+                self.headers["Content-Type"] = content_type
+
+            def read(self, size=-1):
+                return self.body if size < 0 else self.body[:size]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+        def fake_urlopen(request, timeout):
+            body, content_type = responses[request.full_url]
+            return FakeResponse(body, content_type)
+
+        urlopen.side_effect = fake_urlopen
+        output = StringIO()
+        call_command("import_legacy_blog", stdout=output)
+        call_command("import_legacy_blog", stdout=output)
+
+        post = Post.objects.get(legacy_source_id="10")
+        comment = Comment.objects.get(legacy_source_id="20")
+        self.assertEqual(Post.objects.filter(legacy_source_id="10").count(), 1)
+        self.assertEqual(Comment.objects.filter(legacy_source_id="20").count(), 1)
+        self.assertEqual(post.image_data, b64encode(image_bytes).decode("ascii"))
+        self.assertEqual(post.created_at.isoformat(), "2024-06-01T10:00:00+00:00")
+        self.assertEqual(comment.post_id, post.pk)
+        self.assertEqual(comment.body, "Lovely garden.")
