@@ -77,34 +77,43 @@
                 </form>
               </div>
 
-              <section class="comments" aria-label="Comments on {{ post.title }}">
-                <h4>Garden chat <span class="comment-count">{{ post.comments.all|length }}</span></h4>
-                {% for comment in post.comments.all %}
-                  {% if comment.status == "approved" %}
-                    <div class="comment">
-                      <div class="comment-meta"><strong>{{ comment.author_name }}</strong><time>{{ comment.created_at|date:"j M Y" }}</time></div>
-                      <p>{{ comment.body|linebreaksbr }}</p>
-                      <form action="{% url 'blog:like_comment' comment.id %}" method="post" class="comment-like-form">
-                        {% csrf_token %}
-                        <button class="text-button" type="submit">♡ {{ comment.likes_count }}</button>
-                      </form>
-                    </div>
-                  {% endif %}
-                {% empty %}
-                  <p class="muted">No comments yet — start the conversation.</p>
-                {% endfor %}
-                <details class="comment-details">
-                  <summary>Leave a comment</summary>
-                  <form action="{% url 'blog:submit_comment' post.id %}" method="post" class="comment-form">
-                    {% csrf_token %}
-                    {{ comment_form.website }}
-                    <label class="field">Your name {{ comment_form.author_name }}</label>
-                    <label class="field">Email (optional) {{ comment_form.author_email }}</label>
-                    <label class="field">Comment {{ comment_form.body }}</label>
-                    <button class="btn small-btn" type="submit">Send for review</button>
-                  </form>
-                </details>
-              </section>
+              <details class="comments">
+                <summary class="comment-toggle" aria-label="Show comments on {{ post.title }}">
+                  <svg class="comment-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-5.5a7.5 7.5 0 1 1 17-4Z"></path>
+                  </svg>
+                  <span>Comments</span>
+                  <span class="comment-count">{{ post.comments.all|length }}</span>
+                </summary>
+                <div class="comment-content">
+                  <h4>Garden chat</h4>
+                  {% for comment in post.comments.all %}
+                    {% if comment.status == "approved" %}
+                      <div class="comment">
+                        <div class="comment-meta"><strong>{{ comment.author_name }}</strong><time>{{ comment.created_at|date:"j M Y" }}</time></div>
+                        <p>{{ comment.body|linebreaksbr }}</p>
+                        <form action="{% url 'blog:like_comment' comment.id %}" method="post" class="comment-like-form">
+                          {% csrf_token %}
+                          <button class="text-button" type="submit">♡ {{ comment.likes_count }}</button>
+                        </form>
+                      </div>
+                    {% endif %}
+                  {% empty %}
+                    <p class="muted">No comments yet — start the conversation.</p>
+                  {% endfor %}
+                  <details class="comment-details">
+                    <summary>Leave a comment</summary>
+                    <form action="{% url 'blog:submit_comment' post.id %}" method="post" class="comment-form">
+                      {% csrf_token %}
+                      {{ comment_form.website }}
+                      <label class="field">Your name {{ comment_form.author_name }}</label>
+                      <label class="field">Email (optional) {{ comment_form.author_email }}</label>
+                      <label class="field">Comment {{ comment_form.body }}</label>
+                      <button class="btn small-btn" type="submit">Send for review</button>
+                    </form>
+                  </details>
+                </div>
+              </details>
             </article>
           {% endfor %}
         </div>

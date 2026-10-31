@@ -168,6 +168,27 @@ class BlogPublicFlowTests(TestCase):
         comment.save()
         self.assertContains(self.client.get(reverse("blog:home")), "Lovely garden!")
 
+    def test_comments_are_collapsed_behind_counted_speech_bubble(self):
+        Comment.objects.create(
+            post=self.post,
+            author_name="Reader",
+            body="Approved garden tip.",
+            status=ModerationStatus.APPROVED,
+        )
+        Comment.objects.create(
+            post=self.post,
+            author_name="Waiting reader",
+            body="Pending garden tip.",
+            status=ModerationStatus.PENDING,
+        )
+
+        response = self.client.get(reverse("blog:home"))
+        self.assertContains(response, '<details class="comments">')
+        self.assertNotContains(response, '<details class="comments" open>')
+        self.assertContains(response, '<span class="comment-count">1</span>')
+        self.assertContains(response, "Approved garden tip.")
+        self.assertNotContains(response, "Pending garden tip.")
+
     def test_likes_are_unique_per_browser(self):
         url = reverse("blog:like_post", args=[self.post.pk])
         self.client.post(url)
