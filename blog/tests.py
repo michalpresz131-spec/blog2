@@ -169,12 +169,14 @@ class BlogPublicFlowTests(TestCase):
         self.assertContains(self.client.get(reverse("blog:home")), "Lovely garden!")
 
     def test_comments_are_collapsed_behind_counted_speech_bubble(self):
-        Comment.objects.create(
+        comment = Comment.objects.create(
             post=self.post,
             author_name="Reader",
             body="Approved garden tip.",
             status=ModerationStatus.APPROVED,
         )
+        PostLike.objects.create(post=self.post, visitor_key="post-like-visitor")
+        CommentLike.objects.create(comment=comment, visitor_key="comment-like-visitor")
         Comment.objects.create(
             post=self.post,
             author_name="Waiting reader",
@@ -188,6 +190,11 @@ class BlogPublicFlowTests(TestCase):
         self.assertContains(response, '<span class="comment-count">1</span>')
         self.assertContains(response, "Approved garden tip.")
         self.assertNotContains(response, "Pending garden tip.")
+        post = response.context["posts"][0]
+        approved_comment = post.comments.all()[0]
+        with self.assertNumQueries(0):
+            self.assertEqual(post.likes_count, 1)
+            self.assertEqual(approved_comment.likes_count, 1)
 
     def test_likes_are_unique_per_browser(self):
         url = reverse("blog:like_post", args=[self.post.pk])

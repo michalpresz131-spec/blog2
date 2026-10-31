@@ -44,6 +44,8 @@ class Post(models.Model):
 
     @property
     def likes_count(self):
+        if hasattr(self, "annotated_likes_count"):
+            return self.annotated_likes_count
         return self.likes.count()
 
 
@@ -66,6 +68,8 @@ class Comment(models.Model):
 
     @property
     def likes_count(self):
+        if hasattr(self, "annotated_likes_count"):
+            return self.annotated_likes_count
         return self.likes.count()
 
 

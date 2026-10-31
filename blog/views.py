@@ -2,6 +2,7 @@ import base64
 
 from django.contrib import messages
 from django.db import IntegrityError
+from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Prefetch
@@ -18,11 +19,13 @@ def home(request, post_form=None):
     visit_count = record_visit(request)
     posts = (
         Post.objects.filter(status=ModerationStatus.APPROVED)
+        .annotate(annotated_likes_count=Count("likes"))
         .defer("image_data")
         .prefetch_related(
             Prefetch(
                 "comments",
-                queryset=Comment.objects.filter(status=ModerationStatus.APPROVED).prefetch_related("likes"),
+                queryset=Comment.objects.filter(status=ModerationStatus.APPROVED)
+                .annotate(annotated_likes_count=Count("likes")),
             )
         )
         .order_by("-created_at", "-id")
