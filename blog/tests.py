@@ -15,6 +15,7 @@ from django.urls import reverse
 
 from config.db.backends.turso.driver import TursoCursorWrapper
 from .models import Comment, CommentLike, ModerationStatus, Post, PostLike, Visit
+from .notifications import send_notification
 
 
 class TursoCursorWrapperTests(SimpleTestCase):
@@ -86,6 +87,28 @@ class HealthCheckTests(SimpleTestCase):
         from django.core.mail import get_connection
 
         self.assertEqual(get_connection().timeout, 5)
+
+
+class NotificationConfigurationTests(SimpleTestCase):
+    @override_settings(
+        DEBUG=False,
+        EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend",
+    )
+    def test_production_console_backend_does_not_fake_email_delivery(self):
+        with patch("blog.notifications.send_mail") as send_mail:
+            with self.assertLogs("blog.notifications", level="ERROR") as captured:
+                send_notification("Subject", "Body", ["moderator@example.test"])
+
+        send_mail.assert_not_called()
+        self.assertIn("production is using Django's console", captured.output[0])
+
+    def test_missing_moderator_recipient_is_reported(self):
+        with patch("blog.notifications.send_mail") as send_mail:
+            with self.assertLogs("blog.notifications", level="ERROR") as captured:
+                send_notification("Subject", "Body", [])
+
+        send_mail.assert_not_called()
+        self.assertIn("configure NOTIFY_EMAIL", captured.output[0])
 
 
 class LegacyPostImageTests(TestCase):

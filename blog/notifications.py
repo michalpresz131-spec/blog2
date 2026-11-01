@@ -10,6 +10,16 @@ def send_notification(subject, body, recipients):
     """Send configured notifications without making email outages lose a submission."""
     recipients = [address for address in recipients if address]
     if not recipients:
+        logger.error(
+            "Blog notification not sent: configure NOTIFY_EMAIL or "
+            "MODERATION_NOTIFICATION_EMAILS."
+        )
+        return
+    if not settings.DEBUG and settings.EMAIL_BACKEND.endswith(".console.EmailBackend"):
+        logger.error(
+            "Blog notification not sent: production is using Django's console "
+            "email backend. Configure Gmail SMTP credentials."
+        )
         return
     try:
         send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=False)
