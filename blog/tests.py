@@ -247,6 +247,37 @@ class BlogPublicFlowTests(TestCase):
         self.client.post(comment_url)
         self.assertEqual(CommentLike.objects.filter(comment=comment).count(), 1)
 
+    def test_ajax_like_returns_saved_count_and_creation_state(self):
+        response = self.client.post(
+            reverse("blog:like_post", args=[self.post.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"count": 1, "created": True})
+
+        response = self.client.post(
+            reverse("blog:like_post", args=[self.post.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"count": 1, "created": False})
+
+        comment = Comment.objects.create(
+            post=self.post,
+            author_name="Reader",
+            body="Nice garden!",
+            status=ModerationStatus.APPROVED,
+        )
+        response = self.client.post(
+            reverse("blog:like_comment", args=[comment.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"count": 1, "created": True})
+
     def test_staff_admin_moderation_actions_approve_and_notify(self):
         pending = Post.objects.create(
             title="Review me", body="Pending content", author_email="writer@example.test"

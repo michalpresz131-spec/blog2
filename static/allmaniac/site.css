@@ -73,6 +73,8 @@ main.container { padding-block: 34px 68px; }
 .comment-meta { display: flex; justify-content: space-between; gap: 10px; color: #55655b; font-size: .76rem; }
 .comment p { margin: 4px 0 2px; overflow-wrap: anywhere; }
 .comment-like-form { margin: 0; }
+.like-status { margin-left: 7px; color: #8b3c23; font-size: .76rem; }
+.like-form button:disabled { cursor: default; opacity: .8; }
 .text-button { padding: 0; border: 0; color: var(--leaf); background: transparent; font: inherit; font-size: .8rem; cursor: pointer; }
 .muted { color: var(--muted); font-size: .88rem; }
 .comment-details { margin-top: 12px; }
@@ -88,6 +90,7 @@ main.container { padding-block: 34px 68px; }
 .message { margin: 0 0 8px; padding: 11px 14px; border-radius: 9px; background: #e9f5e8; color: #244e2f; }
 .message.error { background: #fff0e9; color: #8b3c23; }
 .submission-confirmation { position: fixed; z-index: 1000; inset: 0; display: grid; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 16px; place-items: center; border: 0; background: rgba(15, 30, 20, .58); }
+.submission-confirmation:not([open]) { display: none; }
 .submission-confirmation-card { width: min(100%, 440px); padding: 26px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--cream); box-shadow: var(--shadow); }
 .submission-confirmation h2 { margin-bottom: 10px; font: 700 1.55rem/1.2 Georgia, serif; }
 .submission-confirmation p { margin-bottom: 0; color: var(--muted); }

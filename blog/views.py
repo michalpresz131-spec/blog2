@@ -3,7 +3,7 @@ import base64
 from django.contrib import messages
 from django.db import IntegrityError
 from django.db.models import Count
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Prefetch
 from django.views.decorators.http import require_POST
@@ -97,9 +97,13 @@ def submit_comment(request, post_id):
 def like_post(request, post_id):
     post = get_object_or_404(Post, pk=post_id, status=ModerationStatus.APPROVED)
     try:
-        PostLike.objects.get_or_create(post=post, visitor_key=get_visitor_key(request))
+        _, created = PostLike.objects.get_or_create(
+            post=post, visitor_key=get_visitor_key(request)
+        )
     except IntegrityError:
-        pass
+        created = False
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"count": post.likes.count(), "created": created})
     messages.info(request, "Thanks for showing this post some love.")
     return redirect("blog:home")
 
@@ -113,7 +117,11 @@ def like_comment(request, comment_id):
         post__status=ModerationStatus.APPROVED,
     )
     try:
-        CommentLike.objects.get_or_create(comment=comment, visitor_key=get_visitor_key(request))
+        _, created = CommentLike.objects.get_or_create(
+            comment=comment, visitor_key=get_visitor_key(request)
+        )
     except IntegrityError:
-        pass
+        created = False
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"count": comment.likes.count(), "created": created})
     return redirect("blog:home")

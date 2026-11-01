@@ -82,9 +82,10 @@
               <h3>{{ post.title }}</h3>
               <div class="post-body">{{ post.body|linebreaksbr }}</div>
               <div class="post-actions">
-                <form action="{% url 'blog:like_post' post.id %}" method="post">
+                <form action="{% url 'blog:like_post' post.id %}" method="post" class="like-form">
                   {% csrf_token %}
-                  <button class="btn subtle" type="submit" aria-label="Like {{ post.title }}">♡ Like <span>{{ post.likes_count }}</span></button>
+                  <button class="btn subtle" type="submit" aria-label="Like {{ post.title }}">♡ Like <span data-like-count>{{ post.likes_count }}</span></button>
+                  <span class="like-status" role="status" aria-live="polite"></span>
                 </form>
               </div>
 
@@ -103,9 +104,10 @@
                       <div class="comment">
                         <div class="comment-meta"><strong>{{ comment.author_name }}</strong><time>{{ comment.created_at|date:"j M Y" }}</time></div>
                         <p>{{ comment.body|linebreaksbr }}</p>
-                        <form action="{% url 'blog:like_comment' comment.id %}" method="post" class="comment-like-form">
+                        <form action="{% url 'blog:like_comment' comment.id %}" method="post" class="comment-like-form like-form">
                           {% csrf_token %}
-                          <button class="text-button" type="submit">♡ {{ comment.likes_count }}</button>
+                          <button class="text-button" type="submit">♡ <span data-like-count>{{ comment.likes_count }}</span></button>
+                          <span class="like-status" role="status" aria-live="polite"></span>
                         </form>
                       </div>
                     {% endif %}
@@ -144,5 +146,41 @@
       <span>{{ visit_count }} visits · <a href="{% url 'admin:index' %}">Staff sign in</a></span>
     </div>
   </footer>
+  <script>
+    document.querySelectorAll(".like-form").forEach((form) => {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const button = form.querySelector("button");
+        const count = form.querySelector("[data-like-count]");
+        const status = form.querySelector(".like-status");
+        if (!button || !count || button.disabled) return;
+
+        const previousCount = Number(count.textContent);
+        button.disabled = true;
+        count.textContent = String(previousCount + 1);
+        status.textContent = "";
+
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            body: new FormData(form),
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+          });
+          if (!response.ok) throw new Error("Like request failed");
+
+          const result = await response.json();
+          if (!Number.isInteger(result.count)) throw new Error("Invalid like count");
+          count.textContent = String(result.count);
+          button.setAttribute("aria-pressed", "true");
+        } catch {
+          count.textContent = String(previousCount);
+          button.disabled = false;
+          status.textContent = "Could not save your like. Please try again.";
+        }
+      });
+    });
+  </script>
 </body>
 </html>
