@@ -22,9 +22,27 @@ def send_notification(subject, body, recipients):
         )
         return
     try:
-        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=False)
+        sent = send_mail(
+            subject,
+            body,
+            settings.DEFAULT_FROM_EMAIL,
+            recipients,
+            fail_silently=False,
+        )
     except Exception:
         logger.exception("Could not send blog notification")
+    else:
+        if sent:
+            logger.info(
+                "Blog notification accepted by %s (%s message(s)).",
+                settings.EMAIL_BACKEND,
+                sent,
+            )
+        else:
+            logger.warning(
+                "Blog notification backend %s did not send a message.",
+                settings.EMAIL_BACKEND,
+            )
 
 
 def notify_moderators(kind, item):

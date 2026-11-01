@@ -93,6 +93,21 @@ class HealthCheckTests(SimpleTestCase):
 
 
 class NotificationConfigurationTests(SimpleTestCase):
+    def test_notification_logs_when_backend_accepts_message(self):
+        with patch("blog.notifications.send_mail", return_value=1) as send_mail:
+            with self.assertLogs("blog.notifications", level="INFO") as captured:
+                send_notification("Subject", "Body", ["moderator@example.test"])
+
+        send_mail.assert_called_once()
+        self.assertIn("accepted by", captured.output[0])
+
+    def test_notification_warns_when_backend_does_not_send_message(self):
+        with patch("blog.notifications.send_mail", return_value=0):
+            with self.assertLogs("blog.notifications", level="WARNING") as captured:
+                send_notification("Subject", "Body", ["moderator@example.test"])
+
+        self.assertIn("did not send a message", captured.output[0])
+
     @override_settings(
         DEBUG=False,
         EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend",
