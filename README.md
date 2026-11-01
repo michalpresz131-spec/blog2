@@ -65,11 +65,15 @@ Email is sent to configured moderator addresses for new submissions and to
 submitters after an approve/reject decision when they supplied an email.
 
 Configure SMTP with `DJANGO_EMAIL_BACKEND`,
-`DJANGO_EMAIL_HOST`, `DJANGO_EMAIL_PORT`, `DJANGO_EMAIL_USE_TLS`,
+`DJANGO_EMAIL_HOST`, `DJANGO_EMAIL_PORT`, `DJANGO_EMAIL_TIMEOUT`,
+`DJANGO_EMAIL_USE_TLS`,
 `DJANGO_EMAIL_HOST_USER`, `DJANGO_EMAIL_HOST_PASSWORD`, and
 `DJANGO_DEFAULT_FROM_EMAIL`. Set `MODERATION_NOTIFICATION_EMAILS` to a
 comma-separated list. Local development defaults to Django's console email
-backend. Do not put real email credentials in source control.
+backend. SMTP has a five-second timeout by default so an email server that
+doesn't respond cannot stall a submission request; override it with
+`DJANGO_EMAIL_TIMEOUT` if needed. Do not put real email credentials in source
+control.
 
 The visit count tracks one visit per browser session per local calendar day.
 Only a hash of a random session token is stored; client IP addresses are not

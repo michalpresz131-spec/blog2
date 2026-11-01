@@ -163,6 +163,7 @@ if bool(gmail_user) != bool(gmail_app_password):
     raise ImproperlyConfigured("Set both GMAIL_USER and GMAIL_APP_PASSWORD to enable Gmail notifications.")
 EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "smtp.gmail.com" if gmail_user else "")
 EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", "587"))
+EMAIL_TIMEOUT = int(os.environ.get("DJANGO_EMAIL_TIMEOUT", "5"))
 EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", True)
 EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_HOST_USER", gmail_user)
 EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_HOST_PASSWORD", gmail_app_password)

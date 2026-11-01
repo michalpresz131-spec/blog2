@@ -81,6 +81,12 @@ class HealthCheckTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"ok")
 
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend", EMAIL_TIMEOUT=5)
+    def test_smtp_backend_uses_bounded_email_timeout(self):
+        from django.core.mail import get_connection
+
+        self.assertEqual(get_connection().timeout, 5)
+
 
 class LegacyPostImageTests(TestCase):
     def test_imported_image_is_served_for_approved_post(self):
