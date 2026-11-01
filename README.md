@@ -121,10 +121,15 @@ added automatically. Render checks `/healthz/`, a lightweight endpoint that
 does not query Turso. The blueprint pins Python 3.13 because
 the Django libSQL backend imports a `sqlite3` attribute removed in Python
 3.14. It also accepts `GMAIL_USER`, `GMAIL_APP_PASSWORD`, and
-`NOTIFY_EMAIL` for Gmail notifications. The service runs migrations at startup
-and serves collected static files with WhiteNoise. Production mode refuses to
-start without both Turso settings, so it will not silently store production
-data in the service's temporary local filesystem.
+`NOTIFY_EMAIL` for Gmail notifications. Set these three variables in the
+Render service's Environment settings; values in the local `set-env.ps1` file
+are not automatically deployed. `GMAIL_USER` is the sending account,
+`GMAIL_APP_PASSWORD` is its Google app password (spaces are ignored), and
+`NOTIFY_EMAIL` is where new post and comment moderation alerts are delivered.
+The service runs migrations at startup and serves collected static files with
+WhiteNoise. Production mode refuses to start without both Turso settings, so it
+will not silently store production data in the service's temporary local
+filesystem.
 
 The free service may spin down after inactivity. Uploaded images use local
 media storage by default, which is not persistent across service restarts or

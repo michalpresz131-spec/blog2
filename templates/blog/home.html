@@ -24,8 +24,17 @@
   <main class="container">
     {% if messages %}
       <div class="messages" role="status" aria-live="polite">
-        {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+        {% for message in messages %}{% if "success" not in message.tags %}<p class="message {{ message.tags }}">{{ message }}</p>{% endif %}{% endfor %}
       </div>
+      {% for message in messages %}
+        {% if "success" in message.tags %}
+          <dialog class="submission-confirmation" aria-labelledby="submission-confirmation-title">
+            <h2 id="submission-confirmation-title">Thanks for sharing!</h2>
+            <p>{{ message }}</p>
+            <form method="dialog"><button class="btn" type="submit">Continue</button></form>
+          </dialog>
+        {% endif %}
+      {% endfor %}
     {% endif %}
 
     <section class="submission-panel" id="share">
@@ -133,5 +142,8 @@
       <span>{{ visit_count }} visits · <a href="{% url 'admin:index' %}">Staff sign in</a></span>
     </div>
   </footer>
+  <script>
+    document.querySelectorAll(".submission-confirmation").forEach((dialog) => dialog.showModal());
+  </script>
 </body>
 </html>

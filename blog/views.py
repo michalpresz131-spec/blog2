@@ -67,7 +67,10 @@ def submit_post(request):
     post.status = ModerationStatus.PENDING
     post.save()
     notify_moderators("post", post)
-    messages.success(request, "Thank you! Your post is awaiting staff review.")
+    messages.success(
+        request,
+        "Your post has been sent for moderation and will appear once approved.",
+    )
     return redirect("blog:home")
 
 
@@ -83,7 +86,10 @@ def submit_comment(request, post_id):
     comment.status = ModerationStatus.PENDING
     comment.save()
     notify_moderators("comment", comment)
-    messages.success(request, "Your comment is awaiting staff review.")
+    messages.success(
+        request,
+        "Your comment has been sent for moderation and will appear once approved.",
+    )
     return redirect("blog:home")
 
 

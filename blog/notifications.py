@@ -12,7 +12,7 @@ def send_notification(subject, body, recipients):
     if not recipients:
         return
     try:
-        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=True)
+        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=False)
     except Exception:
         logger.exception("Could not send blog notification")
 

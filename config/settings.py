@@ -158,7 +158,7 @@ EMAIL_BACKEND = os.environ.get(
     ),
 )
 gmail_user = os.environ.get("GMAIL_USER", "")
-gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD", "")
+gmail_app_password = "".join(os.environ.get("GMAIL_APP_PASSWORD", "").split())
 if bool(gmail_user) != bool(gmail_app_password):
     raise ImproperlyConfigured("Set both GMAIL_USER and GMAIL_APP_PASSWORD to enable Gmail notifications.")
 EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "smtp.gmail.com" if gmail_user else "")

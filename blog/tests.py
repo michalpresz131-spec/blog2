@@ -143,12 +143,38 @@ class BlogPublicFlowTests(TestCase):
                 "author_email": "guest@example.test",
                 "website": "",
             },
+            follow=True,
         )
         self.assertRedirects(response, reverse("blog:home"))
+        self.assertContains(
+            response,
+            "Your post has been sent for moderation and will appear once approved.",
+        )
+        self.assertContains(response, 'class="submission-confirmation"')
         post = Post.objects.get(title="New visitor story")
         self.assertEqual(post.status, ModerationStatus.PENDING)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["staff@example.test"])
+
+    def test_post_submission_survives_and_logs_email_delivery_failure(self):
+        with patch("blog.notifications.send_mail", side_effect=OSError("SMTP unavailable")):
+            with self.assertLogs("blog.notifications", level="ERROR") as captured:
+                response = self.client.post(
+                    reverse("blog:submit_post"),
+                    {
+                        "title": "Post despite email failure",
+                        "body": "This post should still be saved.",
+                        "author_name": "Guest",
+                        "author_email": "",
+                        "website": "",
+                    },
+                )
+
+        self.assertRedirects(response, reverse("blog:home"))
+        self.assertTrue(
+            Post.objects.filter(title="Post despite email failure").exists()
+        )
+        self.assertIn("Could not send blog notification", captured.output[0])
 
     def test_visitor_comments_are_pending_and_hidden_until_approved(self):
         response = self.client.post(
@@ -159,8 +185,14 @@ class BlogPublicFlowTests(TestCase):
                 "body": "Lovely garden!",
                 "website": "",
             },
+            follow=True,
         )
         self.assertRedirects(response, reverse("blog:home"))
+        self.assertContains(
+            response,
+            "Your comment has been sent for moderation and will appear once approved.",
+        )
+        self.assertContains(response, 'class="submission-confirmation"')
         comment = Comment.objects.get(post=self.post)
         self.assertEqual(comment.status, ModerationStatus.PENDING)
         self.assertNotContains(self.client.get(reverse("blog:home")), "Lovely garden!")

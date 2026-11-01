@@ -87,6 +87,11 @@ main.container { padding-block: 34px 68px; }
 .messages { margin-bottom: 16px; }
 .message { margin: 0 0 8px; padding: 11px 14px; border-radius: 9px; background: #e9f5e8; color: #244e2f; }
 .message.error { background: #fff0e9; color: #8b3c23; }
+.submission-confirmation { width: min(100% - 32px, 440px); padding: 26px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--cream); box-shadow: var(--shadow); }
+.submission-confirmation::backdrop { background: rgba(15, 30, 20, .58); }
+.submission-confirmation h2 { margin-bottom: 10px; font: 700 1.55rem/1.2 Georgia, serif; }
+.submission-confirmation p { margin-bottom: 0; color: var(--muted); }
+.submission-confirmation form { text-align: right; }
 .errorlist { margin: 0; padding-left: 18px; color: #a13c2c; font-size: .8rem; }
 .site-footer { color: #f1f8ee; background: rgba(34, 54, 43, .87); backdrop-filter: blur(6px); }
 .footer-content { display: flex; justify-content: space-between; gap: 10px; padding-block: 18px; font-size: .82rem; }
