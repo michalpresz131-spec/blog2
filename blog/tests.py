@@ -156,7 +156,7 @@ class BlogPublicFlowTests(TestCase):
             response,
             "Your post has been sent for moderation and will appear once approved.",
         )
-        self.assertContains(response, 'class="submission-confirmation"')
+        self.assertContains(response, '<dialog open class="submission-confirmation"')
         post = Post.objects.get(title="New visitor story")
         self.assertEqual(post.status, ModerationStatus.PENDING)
         self.assertEqual(len(mail.outbox), 1)
@@ -198,7 +198,7 @@ class BlogPublicFlowTests(TestCase):
             response,
             "Your comment has been sent for moderation and will appear once approved.",
         )
-        self.assertContains(response, 'class="submission-confirmation"')
+        self.assertContains(response, '<dialog open class="submission-confirmation"')
         comment = Comment.objects.get(post=self.post)
         self.assertEqual(comment.status, ModerationStatus.PENDING)
         self.assertNotContains(self.client.get(reverse("blog:home")), "Lovely garden!")

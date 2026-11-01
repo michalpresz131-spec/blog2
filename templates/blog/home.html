@@ -28,10 +28,12 @@
       </div>
       {% for message in messages %}
         {% if "success" in message.tags %}
-          <dialog class="submission-confirmation" aria-labelledby="submission-confirmation-title">
-            <h2 id="submission-confirmation-title">Thanks for sharing!</h2>
-            <p>{{ message }}</p>
-            <form method="dialog"><button class="btn" type="submit">Continue</button></form>
+          <dialog open class="submission-confirmation" aria-labelledby="submission-confirmation-title">
+            <div class="submission-confirmation-card">
+              <h2 id="submission-confirmation-title">Thanks for sharing!</h2>
+              <p>{{ message }}</p>
+              <form method="dialog"><button class="btn" type="submit">Continue</button></form>
+            </div>
           </dialog>
         {% endif %}
       {% endfor %}
@@ -142,8 +144,5 @@
       <span>{{ visit_count }} visits · <a href="{% url 'admin:index' %}">Staff sign in</a></span>
     </div>
   </footer>
-  <script>
-    document.querySelectorAll(".submission-confirmation").forEach((dialog) => dialog.showModal());
-  </script>
 </body>
 </html>

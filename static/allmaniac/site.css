@@ -87,8 +87,8 @@ main.container { padding-block: 34px 68px; }
 .messages { margin-bottom: 16px; }
 .message { margin: 0 0 8px; padding: 11px 14px; border-radius: 9px; background: #e9f5e8; color: #244e2f; }
 .message.error { background: #fff0e9; color: #8b3c23; }
-.submission-confirmation { width: min(100% - 32px, 440px); padding: 26px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--cream); box-shadow: var(--shadow); }
-.submission-confirmation::backdrop { background: rgba(15, 30, 20, .58); }
+.submission-confirmation { position: fixed; z-index: 1000; inset: 0; display: grid; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 16px; place-items: center; border: 0; background: rgba(15, 30, 20, .58); }
+.submission-confirmation-card { width: min(100%, 440px); padding: 26px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--cream); box-shadow: var(--shadow); }
 .submission-confirmation h2 { margin-bottom: 10px; font: 700 1.55rem/1.2 Georgia, serif; }
 .submission-confirmation p { margin-bottom: 0; color: var(--muted); }
 .submission-confirmation form { text-align: right; }
