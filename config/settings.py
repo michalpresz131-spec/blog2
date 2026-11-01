@@ -149,17 +149,21 @@ elif os.environ.get("MEDIA_STORAGE_BACKEND", "local").strip().lower() != "local"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/admin/login/"
 
-EMAIL_BACKEND = os.environ.get(
-    "DJANGO_EMAIL_BACKEND",
-    (
-        "django.core.mail.backends.smtp.EmailBackend"
-        if os.environ.get("GMAIL_USER") and os.environ.get("GMAIL_APP_PASSWORD")
-        else "django.core.mail.backends.console.EmailBackend"
-    ),
-)
+AWS_SES_REGION_NAME = os.environ.get("AWS_SES_REGION_NAME", "")
+AWS_SES_FROM_EMAIL = os.environ.get("AWS_SES_FROM_EMAIL", "")
+if AWS_SES_REGION_NAME and AWS_SES_FROM_EMAIL:
+    default_email_backend = "blog.email_backends.SesEmailBackend"
+elif os.environ.get("GMAIL_USER") and os.environ.get("GMAIL_APP_PASSWORD"):
+    default_email_backend = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    default_email_backend = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", default_email_backend)
 gmail_user = os.environ.get("GMAIL_USER", "")
 gmail_app_password = "".join(os.environ.get("GMAIL_APP_PASSWORD", "").split())
-if bool(gmail_user) != bool(gmail_app_password):
+if (
+    EMAIL_BACKEND.endswith(".smtp.EmailBackend")
+    and bool(gmail_user) != bool(gmail_app_password)
+):
     raise ImproperlyConfigured("Set both GMAIL_USER and GMAIL_APP_PASSWORD to enable Gmail notifications.")
 EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "smtp.gmail.com" if gmail_user else "")
 EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", "587"))
@@ -168,7 +172,8 @@ EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", True)
 EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_HOST_USER", gmail_user)
 EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_HOST_PASSWORD", gmail_app_password)
 DEFAULT_FROM_EMAIL = os.environ.get(
-    "DJANGO_DEFAULT_FROM_EMAIL", gmail_user or "AllManiac blog <noreply@example.com>"
+    "DJANGO_DEFAULT_FROM_EMAIL",
+    AWS_SES_FROM_EMAIL or gmail_user or "AllManiac blog <noreply@example.com>",
 )
 MODERATION_NOTIFICATION_EMAILS = [
     address.strip()

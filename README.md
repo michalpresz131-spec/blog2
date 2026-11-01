@@ -75,6 +75,19 @@ doesn't respond cannot stall a submission request; override it with
 `DJANGO_EMAIL_TIMEOUT` if needed. Do not put real email credentials in source
 control.
 
+Render Free services block outbound SMTP. To send moderation email from a Free
+service, use the AWS SES HTTPS API instead: set `AWS_SES_REGION_NAME` and
+`AWS_SES_FROM_EMAIL`; these settings automatically select the
+`blog.email_backends.SesEmailBackend` unless `DJANGO_EMAIL_BACKEND` is
+explicitly set. Provide AWS credentials through
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (or an IAM role where
+available). The SES sending address must be verified in that AWS region and
+the credentials must allow `ses:SendRawEmail`. While SES is in its sandbox,
+the recipient address must also be verified; request SES production access to
+send to unverified recipients such as Gmail addresses. Keep `NOTIFY_EMAIL` set
+to the Gmail address that should receive the notifications. Turso is the
+database and cannot send email.
+
 The visit count tracks one visit per browser session per local calendar day.
 Only a hash of a random session token is stored; client IP addresses are not
 collected. Likes are likewise unique per browser session.
@@ -124,12 +137,12 @@ service's actual `onrender.com` hostname; the Render-provided hostname is also
 added automatically. Render checks `/healthz/`, a lightweight endpoint that
 does not query Turso. The blueprint pins Python 3.13 because
 the Django libSQL backend imports a `sqlite3` attribute removed in Python
-3.14. It also accepts `GMAIL_USER`, `GMAIL_APP_PASSWORD`, and
-`NOTIFY_EMAIL` for Gmail notifications. Set these three variables in the
-Render service's Environment settings; values in the local `set-env.ps1` file
-are not automatically deployed. `GMAIL_USER` is the sending account,
-`GMAIL_APP_PASSWORD` is its Google app password (spaces are ignored), and
-`NOTIFY_EMAIL` is where new post and comment moderation alerts are delivered.
+3.14. It accepts Gmail SMTP and AWS SES settings for moderation email. Set
+required variables in the Render service's Environment settings; values in the
+local `set-env.ps1` file are not automatically deployed. On the Free plan use
+AWS SES over HTTPS as described above; Gmail SMTP requires a paid Render
+instance. `NOTIFY_EMAIL` is where new post and comment moderation alerts are
+delivered.
 The service runs migrations at startup and serves collected static files with
 WhiteNoise. Production mode refuses to start without both Turso settings, so it
 will not silently store production data in the service's temporary local

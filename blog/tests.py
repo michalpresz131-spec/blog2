@@ -9,12 +9,15 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.mail import EmailMessage
+from django.core.exceptions import ImproperlyConfigured
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from config.db.backends.turso.driver import TursoCursorWrapper
 from .models import Comment, CommentLike, ModerationStatus, Post, PostLike, Visit
+from .email_backends import SesEmailBackend
 from .notifications import send_notification
 
 
@@ -109,6 +112,36 @@ class NotificationConfigurationTests(SimpleTestCase):
 
         send_mail.assert_not_called()
         self.assertIn("configure NOTIFY_EMAIL", captured.output[0])
+
+    @override_settings(
+        AWS_SES_REGION_NAME="eu-west-1",
+        AWS_SES_FROM_EMAIL="verified@example.test",
+    )
+    def test_ses_backend_sends_raw_email_via_https_api_client(self):
+        message = EmailMessage(
+            "Moderation notice",
+            "A new comment was submitted.",
+            "verified@example.test",
+            ["moderator@example.test"],
+        )
+        with patch("blog.email_backends.boto3.client") as client_factory:
+            backend = SesEmailBackend()
+            sent = backend.send_messages([message])
+
+        self.assertEqual(sent, 1)
+        client_factory.assert_called_once_with("ses", region_name="eu-west-1")
+        client_factory.return_value.send_raw_email.assert_called_once()
+        call = client_factory.return_value.send_raw_email.call_args.kwargs
+        self.assertEqual(call["Source"], "verified@example.test")
+        self.assertEqual(call["Destinations"], ["moderator@example.test"])
+        self.assertIn(b"Moderation notice", call["RawMessage"]["Data"])
+
+    @override_settings(AWS_SES_REGION_NAME="", AWS_SES_FROM_EMAIL="")
+    def test_ses_backend_requires_region_and_verified_sender_configuration(self):
+        with self.assertRaisesMessage(
+            ImproperlyConfigured, "Set AWS_SES_REGION_NAME"
+        ):
+            SesEmailBackend()
 
 
 class LegacyPostImageTests(TestCase):

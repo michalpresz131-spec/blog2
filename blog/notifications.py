@@ -18,7 +18,7 @@ def send_notification(subject, body, recipients):
     if not settings.DEBUG and settings.EMAIL_BACKEND.endswith(".console.EmailBackend"):
         logger.error(
             "Blog notification not sent: production is using Django's console "
-            "email backend. Configure Gmail SMTP credentials."
+            "email backend. Configure an email delivery backend."
         )
         return
     try:

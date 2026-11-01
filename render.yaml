@@ -25,5 +25,13 @@ services:
         sync: false
       - key: GMAIL_APP_PASSWORD
         sync: false
+      - key: AWS_SES_REGION_NAME
+        sync: false
+      - key: AWS_SES_FROM_EMAIL
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
       - key: NOTIFY_EMAIL
         sync: false
