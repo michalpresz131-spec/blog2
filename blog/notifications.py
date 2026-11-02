@@ -56,6 +56,18 @@ def notify_moderators(kind, item):
     )
 
 
+def notify_comment_received(comment):
+    if not comment.author_email:
+        return
+    send_notification(
+        "We received your AllManiac comment",
+        f"Hello {comment.author_name},\n\n"
+        "Your comment has been received and is awaiting moderation. "
+        "It will appear on the blog once approved.",
+        [comment.author_email],
+    )
+
+
 def notify_submitter(item, status_label):
     if not item.author_email:
         return

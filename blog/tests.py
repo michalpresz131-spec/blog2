@@ -258,7 +258,7 @@ class BlogPublicFlowTests(TestCase):
             reverse("blog:submit_comment", args=[self.post.pk]),
             {
                 "author_name": "Reader",
-                "author_email": "",
+                "author_email": "reader@example.test",
                 "body": "Lovely garden!",
                 "website": "",
             },
@@ -272,6 +272,9 @@ class BlogPublicFlowTests(TestCase):
         self.assertContains(response, '<dialog open class="submission-confirmation"')
         comment = Comment.objects.get(post=self.post)
         self.assertEqual(comment.status, ModerationStatus.PENDING)
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[1].to, ["reader@example.test"])
+        self.assertIn("awaiting moderation", mail.outbox[1].body)
         self.assertNotContains(self.client.get(reverse("blog:home")), "Lovely garden!")
         comment.status = ModerationStatus.APPROVED
         comment.save()

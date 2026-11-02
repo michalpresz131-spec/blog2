@@ -11,7 +11,7 @@ from django.views.decorators.http import require_GET
 
 from .forms import CommentSubmissionForm, PostSubmissionForm
 from .models import Comment, CommentLike, ModerationStatus, Post, PostLike
-from .notifications import notify_moderators
+from .notifications import notify_comment_received, notify_moderators
 from .visitors import get_visitor_key, record_visit
 
 
@@ -101,6 +101,7 @@ def submit_comment(request, post_id):
     comment.status = ModerationStatus.PENDING
     comment.save()
     notify_moderators("comment", comment)
+    notify_comment_received(comment)
     messages.success(
         request,
         "Your comment has been sent for moderation and will appear once approved.",
