@@ -5,7 +5,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db import OperationalError, connection
+from django.db import OperationalError, connection, transaction
 from django.db.models import Count
 from django.utils.dateparse import parse_datetime
 
@@ -104,6 +104,79 @@ def _save_post(item):
     return int(created), imported_comments
 
 
+def _sync_legacy_likes(source_posts, dry_run):
+    source_ids = [str(item["id"]) for item in source_posts]
+    posts_by_source_id = Post.objects.in_bulk(source_ids, field_name="legacy_source_id")
+    missing_posts = set(source_ids) - set(posts_by_source_id)
+    if missing_posts:
+        raise CommandError(
+            f"Cannot map likes for {len(missing_posts)} source post(s); import the posts first."
+        )
+
+    updated_posts = []
+    updated_comments = []
+    seen_comment_ids = set()
+    for item in source_posts:
+        likes = item.get("likes")
+        if not isinstance(likes, int) or isinstance(likes, bool) or likes < 0:
+            raise CommandError(f"Source post {item['id']} has an invalid like count.")
+        post = posts_by_source_id[str(item["id"])]
+        if post.legacy_likes != likes:
+            post.legacy_likes = likes
+            updated_posts.append(post)
+
+        expected_count = item.get("comment_count", 0)
+        if not isinstance(expected_count, int) or isinstance(expected_count, bool) or expected_count < 0:
+            raise CommandError(f"Source post {item['id']} has an invalid comment count.")
+        source_comments = (
+            _read_json(f"/api/posts/{item['id']}/comments") if expected_count else []
+        )
+        if not isinstance(source_comments, list) or len(source_comments) != expected_count:
+            raise CommandError(
+                f"Expected {expected_count} comment(s) for source post "
+                f"{item['id']}, received {len(source_comments) if isinstance(source_comments, list) else 'invalid data'}."
+            )
+        comment_ids = []
+        for comment in source_comments:
+            if not isinstance(comment, dict) or comment.get("id") is None:
+                raise CommandError(f"Source post {item['id']} has an invalid comment.")
+            source_comment_id = str(comment["id"])
+            likes = comment.get("likes")
+            if (
+                source_comment_id in seen_comment_ids
+                or not isinstance(likes, int)
+                or isinstance(likes, bool)
+                or likes < 0
+            ):
+                raise CommandError(f"Source comment {source_comment_id} has invalid data.")
+            seen_comment_ids.add(source_comment_id)
+            comment_ids.append((source_comment_id, likes))
+
+        comments_by_source_id = Comment.objects.in_bulk(
+            [comment_id for comment_id, _ in comment_ids],
+            field_name="legacy_source_id",
+        )
+        missing_comments = {
+            comment_id for comment_id, _ in comment_ids
+        } - set(comments_by_source_id)
+        if missing_comments:
+            raise CommandError(
+                f"Cannot map likes for {len(missing_comments)} source comment(s); "
+                "import the comments first."
+            )
+        for source_comment_id, likes in comment_ids:
+            comment = comments_by_source_id[source_comment_id]
+            if comment.legacy_likes != likes:
+                comment.legacy_likes = likes
+                updated_comments.append(comment)
+
+    if not dry_run:
+        with transaction.atomic():
+            Post.objects.bulk_update(updated_posts, ["legacy_likes"])
+            Comment.objects.bulk_update(updated_comments, ["legacy_likes"])
+    return len(updated_posts), len(updated_comments)
+
+
 class Command(BaseCommand):
     help = "Import approved posts, comments, and images from the original AllManiac blog."
 
@@ -113,11 +186,36 @@ class Command(BaseCommand):
             action="store_true",
             help="Fetch and validate source data without writing to the database.",
         )
+        parser.add_argument(
+            "--likes-only",
+            action="store_true",
+            help="Import historical like totals for already-imported posts and comments.",
+        )
 
     def handle(self, *args, **options):
         source_posts = _read_json("/api/posts")
         if not isinstance(source_posts, list):
             raise CommandError("The source posts endpoint did not return a JSON array.")
+        if options["likes_only"]:
+            if any(
+                not isinstance(item, dict) or item.get("id") is None
+                for item in source_posts
+            ):
+                raise CommandError("The source posts endpoint returned an invalid post.")
+            if len({str(item["id"]) for item in source_posts}) != len(source_posts):
+                raise CommandError("The source posts endpoint returned duplicate IDs.")
+            post_count, comment_count = _sync_legacy_likes(
+                source_posts, options["dry_run"]
+            )
+            action = "Would update" if options["dry_run"] else "Updated"
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"{action} historical likes for {post_count} post(s) "
+                    f"and {comment_count} comment(s)."
+                )
+            )
+            return
+
         source_ids = {
             str(item["id"])
             for item in source_posts

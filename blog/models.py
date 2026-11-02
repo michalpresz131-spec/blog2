@@ -21,6 +21,7 @@ class Post(models.Model):
     image_data = models.TextField(blank=True)
     image_content_type = models.CharField(max_length=100, blank=True)
     legacy_source_id = models.CharField(max_length=100, blank=True, null=True, unique=True)
+    legacy_likes = models.PositiveIntegerField(default=0)
     status = models.CharField(
         max_length=10, choices=ModerationStatus.choices, default=ModerationStatus.PENDING
     )
@@ -46,7 +47,7 @@ class Post(models.Model):
     def likes_count(self):
         if hasattr(self, "annotated_likes_count"):
             return self.annotated_likes_count
-        return self.likes.count()
+        return self.likes.count() + self.legacy_likes
 
 
 class Comment(models.Model):
@@ -55,6 +56,7 @@ class Comment(models.Model):
     author_email = models.EmailField(blank=True)
     body = models.TextField(validators=[MaxLengthValidator(4000)])
     legacy_source_id = models.CharField(max_length=100, blank=True, null=True, unique=True)
+    legacy_likes = models.PositiveIntegerField(default=0)
     status = models.CharField(
         max_length=10, choices=ModerationStatus.choices, default=ModerationStatus.PENDING
     )
@@ -70,7 +72,7 @@ class Comment(models.Model):
     def likes_count(self):
         if hasattr(self, "annotated_likes_count"):
             return self.annotated_likes_count
-        return self.likes.count()
+        return self.likes.count() + self.legacy_likes
 
 
 class PostLike(models.Model):

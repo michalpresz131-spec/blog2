@@ -2,7 +2,7 @@ import base64
 
 from django.contrib import messages
 from django.db import IntegrityError
-from django.db.models import Count, Exists, OuterRef
+from django.db.models import Count, Exists, F, OuterRef
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Prefetch
@@ -20,7 +20,7 @@ def home(request, post_form=None):
     visitor_key = get_visitor_key(request)
     posts = (
         Post.objects.filter(status=ModerationStatus.APPROVED)
-        .annotate(annotated_likes_count=Count("likes"))
+        .annotate(annotated_likes_count=Count("likes") + F("legacy_likes"))
         .annotate(
             viewer_liked=Exists(
                 PostLike.objects.filter(
@@ -33,7 +33,7 @@ def home(request, post_form=None):
             Prefetch(
                 "comments",
                 queryset=Comment.objects.filter(status=ModerationStatus.APPROVED)
-                .annotate(annotated_likes_count=Count("likes"))
+                .annotate(annotated_likes_count=Count("likes") + F("legacy_likes"))
                 .annotate(
                     viewer_liked=Exists(
                         CommentLike.objects.filter(
@@ -119,7 +119,9 @@ def like_post(request, post_id):
     except IntegrityError:
         created = False
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
-        return JsonResponse({"count": post.likes.count(), "created": created})
+        return JsonResponse(
+            {"count": post.likes.count() + post.legacy_likes, "created": created}
+        )
     messages.info(request, "Thanks for showing this post some love.")
     return redirect("blog:home")
 
@@ -139,5 +141,7 @@ def like_comment(request, comment_id):
     except IntegrityError:
         created = False
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
-        return JsonResponse({"count": comment.likes.count(), "created": created})
+        return JsonResponse(
+            {"count": comment.likes.count() + comment.legacy_likes, "created": created}
+        )
     return redirect("blog:home")

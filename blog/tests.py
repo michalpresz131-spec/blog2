@@ -376,6 +376,35 @@ class BlogPublicFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"count": 1, "created": True})
 
+    def test_legacy_like_counts_are_added_to_display_and_ajax_totals(self):
+        self.post.legacy_likes = 12
+        self.post.save(update_fields=["legacy_likes"])
+        comment = Comment.objects.create(
+            post=self.post,
+            author_name="Reader",
+            body="Nice garden!",
+            status=ModerationStatus.APPROVED,
+            legacy_likes=4,
+        )
+
+        response = self.client.get(reverse("blog:home"))
+        post = response.context["posts"][0]
+        self.assertEqual(post.likes_count, 12)
+        self.assertEqual(post.comments.all()[0].likes_count, 4)
+        self.assertContains(response, 'data-like-count>12</span>')
+        self.assertContains(response, 'data-like-count>4</span>')
+
+        post_response = self.client.post(
+            reverse("blog:like_post", args=[self.post.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        comment_response = self.client.post(
+            reverse("blog:like_comment", args=[comment.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(post_response.json(), {"count": 13, "created": True})
+        self.assertEqual(comment_response.json(), {"count": 5, "created": True})
+
     def test_staff_admin_moderation_actions_approve_and_notify(self):
         pending = Post.objects.create(
             title="Review me", body="Pending content", author_email="writer@example.test"
@@ -438,6 +467,53 @@ class PostImportExportTests(TestCase):
             call_command("export_posts", file=str(destination))
             exported = json.loads(destination.read_text(encoding="utf-8"))
             self.assertEqual(exported["posts"][0]["title"], "Imported")
+
+    @patch("blog.management.commands.import_legacy_blog._read_json")
+    def test_legacy_like_import_updates_matching_records_idempotently(self, read_json):
+        first_post = Post.objects.create(
+            title="Imported post",
+            body="Original content",
+            legacy_source_id="69",
+            status=ModerationStatus.APPROVED,
+        )
+        second_post = Post.objects.create(
+            title="Another imported post",
+            body="More content",
+            legacy_source_id="70",
+            status=ModerationStatus.APPROVED,
+        )
+        comment = Comment.objects.create(
+            post=second_post,
+            author_name="Reader",
+            body="Original comment",
+            legacy_source_id="76",
+            status=ModerationStatus.APPROVED,
+        )
+        posts = [
+            {"id": 69, "likes": 770, "comment_count": 0},
+            {"id": 70, "likes": 45, "comment_count": 1},
+        ]
+        read_json.side_effect = lambda path: (
+            posts
+            if path == "/api/posts"
+            else [{"id": 76, "likes": 3}]
+        )
+
+        call_command("import_legacy_blog", likes_only=True, stdout=StringIO())
+        first_post.refresh_from_db()
+        second_post.refresh_from_db()
+        comment.refresh_from_db()
+        self.assertEqual(first_post.legacy_likes, 770)
+        self.assertEqual(second_post.legacy_likes, 45)
+        self.assertEqual(comment.legacy_likes, 3)
+
+        call_command("import_legacy_blog", likes_only=True, stdout=StringIO())
+        first_post.refresh_from_db()
+        second_post.refresh_from_db()
+        comment.refresh_from_db()
+        self.assertEqual(first_post.legacy_likes, 770)
+        self.assertEqual(second_post.legacy_likes, 45)
+        self.assertEqual(comment.legacy_likes, 3)
 
     @patch("blog.management.commands.import_legacy_blog.urlopen")
     def test_legacy_import_preserves_image_and_comment_without_duplicates(self, urlopen):
