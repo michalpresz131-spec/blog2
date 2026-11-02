@@ -318,6 +318,30 @@ class BlogPublicFlowTests(TestCase):
         self.client.post(comment_url)
         self.assertEqual(CommentLike.objects.filter(comment=comment).count(), 1)
 
+    def test_liked_state_is_retained_for_the_same_browser(self):
+        comment = Comment.objects.create(
+            post=self.post,
+            author_name="Reader",
+            body="Nice!",
+            status=ModerationStatus.APPROVED,
+        )
+        self.client.get(reverse("blog:home"))
+        self.client.post(reverse("blog:like_post", args=[self.post.pk]))
+        self.client.post(reverse("blog:like_comment", args=[comment.pk]))
+
+        response = self.client.get(reverse("blog:home"))
+
+        post = response.context["posts"][0]
+        liked_comment = post.comments.all()[0]
+        self.assertTrue(post.viewer_liked)
+        self.assertTrue(liked_comment.viewer_liked)
+        self.assertContains(response, 'aria-pressed="true" disabled>♥')
+
+        other_browser = self.client_class()
+        other_response = other_browser.get(reverse("blog:home"))
+        self.assertFalse(other_response.context["posts"][0].viewer_liked)
+        self.assertFalse(other_response.context["posts"][0].comments.all()[0].viewer_liked)
+
     def test_ajax_like_returns_saved_count_and_creation_state(self):
         response = self.client.post(
             reverse("blog:like_post", args=[self.post.pk]),

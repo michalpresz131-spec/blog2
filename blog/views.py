@@ -2,7 +2,7 @@ import base64
 
 from django.contrib import messages
 from django.db import IntegrityError
-from django.db.models import Count
+from django.db.models import Count, Exists, OuterRef
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Prefetch
@@ -17,15 +17,30 @@ from .visitors import get_visitor_key, record_visit
 
 def home(request, post_form=None):
     visit_count = record_visit(request)
+    visitor_key = get_visitor_key(request)
     posts = (
         Post.objects.filter(status=ModerationStatus.APPROVED)
         .annotate(annotated_likes_count=Count("likes"))
+        .annotate(
+            viewer_liked=Exists(
+                PostLike.objects.filter(
+                    post_id=OuterRef("pk"), visitor_key=visitor_key
+                )
+            )
+        )
         .defer("image_data")
         .prefetch_related(
             Prefetch(
                 "comments",
                 queryset=Comment.objects.filter(status=ModerationStatus.APPROVED)
-                .annotate(annotated_likes_count=Count("likes")),
+                .annotate(annotated_likes_count=Count("likes"))
+                .annotate(
+                    viewer_liked=Exists(
+                        CommentLike.objects.filter(
+                            comment_id=OuterRef("pk"), visitor_key=visitor_key
+                        )
+                    )
+                ),
             )
         )
         .order_by("-created_at", "-id")

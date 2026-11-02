@@ -84,7 +84,7 @@
               <div class="post-actions">
                 <form action="{% url 'blog:like_post' post.id %}" method="post" class="like-form">
                   {% csrf_token %}
-                  <button class="btn subtle" type="submit" aria-label="Like {{ post.title }}">♡ Like <span data-like-count>{{ post.likes_count }}</span></button>
+                  <button class="btn subtle" type="submit" aria-label="Like {{ post.title }}" aria-pressed="{{ post.viewer_liked|yesno:'true,false' }}"{% if post.viewer_liked %} disabled{% endif %}>{% if post.viewer_liked %}♥{% else %}♡{% endif %} <span data-like-label>{% if post.viewer_liked %}Liked{% else %}Like{% endif %}</span> <span data-like-count>{{ post.likes_count }}</span></button>
                   <span class="like-status" role="status" aria-live="polite"></span>
                 </form>
               </div>
@@ -106,7 +106,7 @@
                         <p>{{ comment.body|linebreaksbr }}</p>
                         <form action="{% url 'blog:like_comment' comment.id %}" method="post" class="comment-like-form like-form">
                           {% csrf_token %}
-                          <button class="text-button" type="submit">♡ <span data-like-count>{{ comment.likes_count }}</span></button>
+                          <button class="text-button" type="submit" aria-label="Like comment" aria-pressed="{{ comment.viewer_liked|yesno:'true,false' }}"{% if comment.viewer_liked %} disabled{% endif %}>{% if comment.viewer_liked %}♥{% else %}♡{% endif %} <span data-like-count>{{ comment.likes_count }}</span></button>
                           <span class="like-status" role="status" aria-live="polite"></span>
                         </form>
                       </div>
@@ -174,6 +174,8 @@
           if (!Number.isInteger(result.count)) throw new Error("Invalid like count");
           count.textContent = String(result.count);
           button.setAttribute("aria-pressed", "true");
+          const label = button.querySelector("[data-like-label]");
+          if (label) label.textContent = "Liked";
         } catch {
           count.textContent = String(previousCount);
           button.disabled = false;
